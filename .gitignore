@@ -1,3 +1,4 @@
 .env
 usage_logger.txt
 \__pycache__
+chat_history.txt
