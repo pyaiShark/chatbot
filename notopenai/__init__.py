@@ -63,8 +63,8 @@ class Responses:
 
 
 class NotOpenAI:
-    def __init__(self, api_key):
-        self.api_key = api_key
+    def __init__(self, api_key: str):
+        self.api_key: str = api_key
         self.responses = Responses(self)
 
     def usage(self):
@@ -79,7 +79,7 @@ class NotOpenAI:
             data=data,
             method=method,
             headers={
-                "Authorization": "Bearer " + self.api_key,
+                "Authorization": "Bearer " + str(self.api_key),
                 "Content-Type": "application/json",
                 "User-Agent": "notopenai-python",
             },

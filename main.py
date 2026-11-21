@@ -15,9 +15,10 @@ Do not repeat a command you have already sent for the same request
 """
 TODOS = []
 
+MAX_TOOL_CALL = 5
 
 def main():
-    messages = [make_message("system", PERSONALITY + '\n' + TOOL_CALLS)]
+    messages = [make_message("system", PERSONALITY + '\n\n'+ "tools" + TOOL_CALLS)]
     print("Chat with the bot! (press Enter to quit)")
     user_prompt = input("You: ")
     while user_prompt:
@@ -29,17 +30,33 @@ def main():
             messages.append(make_message("user", user_prompt))
             prompt = format_messages(messages)
             response = call_gpt(f"{prompt}")
-            if response:
-                if response[:5] == "ADD: ":
-                    print(f"{INDENT}[tool call] ADD: {response[5:]}")
-                    print(f"{INDENT}{add_todo(response[5:])}")
-                    messages.append(make_message("tool", "Added: "+response))
-                elif response[:4] == "LIST":
-                    todos = list_todo()
-                    messages.append(make_message("tool", "Tool result: "+response))
+            is_working = True
+            count = 0
+            while is_working:
+                if count >= MAX_TOOL_CALL:
+                        print("Too many tool calls, so I stopped.")
+                        break
+                if response and response.startswith("ADD: "):
+                    count += 1
+                    messages.append(make_message("assistant", response))
+                    print(f"{INDENT}[tool call] {response}")
+                    tool_result = add_todo(response[5:])
+                    print(f"{INDENT}{tool_result}")
+                    messages.append(make_message("tool", tool_result))
+                elif response == "LIST":
+                    count += 1
+                    messages.append(make_message("assistant", response))
+                    tool_result = list_todo()
+                    messages.append(make_message("tool", tool_result))
                 else:
                     messages.append(make_message("assistant", response))
                     print(f"Agent: {response}")
+                    is_working = False
+
+                response = "" # This is a short of global variable for the below if statement, that replaced with the new value of response inside 'if', the logic of local variable is working hear
+                if is_working:
+                    prompt = format_messages(messages)
+                    response = call_gpt(prompt)
         user_prompt = input("You: ")
     logger(messages, "chat_history.txt", "chat_history")
 
@@ -62,9 +79,9 @@ def format_messages(msgs):
         elif msg["role"] == "assistant":
             result += "Assistant: " + msg["content"] + '\n'
         elif msg["role"] == "tool":
-            result += "tool: " + msg["content"] + '\n'
+            result += "tool_result: " + msg["content"] + '\n'
         else:
-            result += "Instructions: " + msg["content"] + "\n\n"
+            result += "Instructions: " + msg["content"] + "\n"
     result += "Assistant:"
     return result
 
@@ -79,9 +96,10 @@ def add_todo(task):
 def list_todo():
     if not TODOS:
         print("The list is empty.")
+    result = ""
     for todo in TODOS:
-        print(f"O{INDENT}{todo}")
-    return TODOS
+        result += f"{todo} "
+    return result
 
 
 if __name__ == "__main__":
