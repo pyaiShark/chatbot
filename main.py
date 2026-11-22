@@ -11,7 +11,8 @@ For anything else, just talk normally.
 To see the user's list, reply with exactly: LIST
 Add one task per command: if the user lists several tasks, send ADD once for each.
 Send one command at a time, then stop. You will be shown the result and can reply again.
-Do not repeat a command you have already sent for the same request
+Do not repeat a command you have already sent for the same request.
+To cross a task off the list, reply with exactly: DONE: <the task number>
 """
 TODOS = []
 
@@ -33,21 +34,19 @@ def main():
             is_working = True
             count = 0
             while is_working:
+                if not response:
+                    break
                 if count >= MAX_TOOL_CALL:
                         print("Too many tool calls, so I stopped.")
                         break
-                if response and response.startswith("ADD: "):
+                if response.startswith("ADD: "):
                     count += 1
-                    messages.append(make_message("assistant", response))
-                    print(f"{INDENT}[tool call] {response}")
-                    tool_result = add_todo(response[5:])
-                    print(f"{INDENT}{tool_result}")
-                    messages.append(make_message("tool", tool_result))
+                    handel_add(response, messages)
                 elif response == "LIST":
                     count += 1
-                    messages.append(make_message("assistant", response))
-                    tool_result = list_todo()
-                    messages.append(make_message("tool", tool_result))
+                    handel_list(response, messages)
+                elif response.startswith("DONE: "):
+                    handel_update(response, messages)
                 else:
                     messages.append(make_message("assistant", response))
                     print(f"Agent: {response}")
@@ -60,6 +59,38 @@ def main():
         user_prompt = input("You: ")
     logger(messages, "chat_history.txt", "chat_history")
 
+
+def handel_add(response, messages):
+    add_to_message("assistant", response, messages)
+    print(f"{INDENT}[tool call] {response}")
+    tool_result = add_todo(response[5:])
+    print(f"{INDENT}{tool_result}")
+    add_to_message("tool", tool_result, messages)
+
+
+def handel_list(response, messages):
+    add_to_message("assistant", response, messages)
+    tool_result = list_todo()
+    add_to_message("tool", tool_result, messages)
+
+
+def handel_update(response, messages):
+    handel_list(response, messages)
+    print(f"{INDENT}[tool call] LIST")
+    tool_result = complete_todo(response[6:].strip())
+    print(f"{INDENT}[tool call] {response}")
+    add_to_message("tool", tool_result, messages)
+
+
+def add_to_message(role, content, messages):
+    """Append the message to the messages list after formatting with make_message function
+
+    Args:
+        role (str): Who is the owner of the given content
+        content (str): Content
+        messages (List): List of messages or history 
+    """
+    messages.append(make_message(role, content))
 
 def make_message(role, content):
     return {"role": role, "content": content}
@@ -97,10 +128,16 @@ def list_todo():
     if not TODOS:
         print("The list is empty.")
     result = ""
-    for todo in TODOS:
-        result += f"{todo} "
+    for i, todo in enumerate(TODOS, start=1):
+        result += f"{i}_{todo}\n"
     return result
 
+
+def complete_todo(todo_no):
+    if todo_no:
+        todo = TODOS.pop((int(todo_no)-1))
+        return f"Completed: {todo}"
+    return "Their is no task with that number."
 
 if __name__ == "__main__":
     main()
