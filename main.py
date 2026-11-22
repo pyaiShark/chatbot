@@ -73,9 +73,15 @@ def main():
                         print(f"Agent: {response_as_dict["message"]}")
                         messages.append(make_message("assistant", response_as_dict["message"]))
                         is_working = False
-                    else:
+                    elif response_as_dict["type"] == "tool_call_request":
                         tool_call_check(response_as_dict, messages)
                         count += 1
+                    else:
+                        add_to_message("Unknown tool", response_as_dict["type"], messages)
+                        tool_call_check(response_as_dict, messages)
+                        print(f"{INDENT}[tool call] {response_as_dict["tool_name"]}: {response_as_dict["tool_parameters"]}")
+                        count += 1
+
 
                     response = "" # This is a short of global variable for the below if statement, that replaced with the new value of response inside 'if', the logic of local variable is working hear
                     if is_working:
