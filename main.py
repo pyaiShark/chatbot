@@ -20,13 +20,19 @@ MAX_TOOL_CALL = 5
 
 def main():
     messages = [make_message("system", PERSONALITY + '\n\n'+ "tools" + TOOL_CALLS)]
-    print("Chat with the bot! (press Enter to quit)")
+    print("Chat with the bot! (type /help for commands; press Enter to quit)")
     user_prompt = input("You: ")
     while user_prompt:
         if user_prompt == "peek":
             peek(messages)
-        if user_prompt == "todos":
+        elif user_prompt == "todos":
             print(TODOS)
+        elif user_prompt == "/help":
+            print_help()
+        elif user_prompt == "/reset":
+            messages = [make_message("system", PERSONALITY + '\n\n'+ "tools" + TOOL_CALLS)]
+            TODOS.clear()
+            print("Conversation and to-do list reset.")
         else:
             messages.append(make_message("user", user_prompt))
             prompt = format_messages(messages)
@@ -135,9 +141,22 @@ def list_todo():
 
 def complete_todo(todo_no):
     if todo_no:
-        todo = TODOS.pop((int(todo_no)-1))
+        try:
+            index = int(todo_no) - 1
+            todo = TODOS.pop(index)
+        except (ValueError, IndexError):
+            return f"The task number '{todo_no}' is not on the list."
         return f"Completed: {todo}"
     return "Their is no task with that number."
+
+
+def print_help():
+    print("Commands:")
+    print("  /help  - Show this command reference")
+    print("  /reset - Clear chat history and the to-do list")
+    print("  todos  - Print the to-do list")
+    print("  peek   - Show the internal message history")
+    print("  [Enter] - Quit")
 
 if __name__ == "__main__":
     main()
