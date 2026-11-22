@@ -14,12 +14,15 @@ To reply to the user:
 {"type":"response_to_human","message":"..."}
 
 To call a tool:
-{"type":"tool_call_request","tool_name":"add_todo","tool_argument":"task"}
+{"type":"tool_call_request","tool_name":"add_todo","tool_parameters":"task"}
 
 Available tools:
-- add_todo: argument is the task text.
-- list_todos: argument must be "".
-- complete_todo: argument is the task number as a string.
+add_todo, parameters: {"task":"...", "priority": "high" or "low"}
+list_todos, parameters: {}
+complete_todo, parameters: {"number": 1}
+
+example:
+{"type":"tool_call_request","tool_name":"add_todo","tool_parameters":{"task":"buy milk","priority":"high"}"}
 
 Rules:
 1. If the user asks to add multiple tasks, add them one at a time. After each tool call, stop and wait for the tool result before making the next call.
@@ -28,6 +31,7 @@ Rules:
 4. After a tool result, either make the next required tool call or reply to the user. Never repeat a tool call that has already succeeded for the current request.
 5. Don’t claim an action succeeded until its tool result confirms it.
 6. For requests that don’t need a tool, reply directly using response_to_human.
+7. Do not repeat tool call, spaces not matter in dict, you can output like {"task":"...","priority":"high"or"low"}
 """
 TODOS = []
 
@@ -55,9 +59,12 @@ def main():
 
             is_working = True
             count = 0
+            
             while is_working:
-                if count >= MAX_TOOL_CALL or not response:
+                if count >= MAX_TOOL_CALL:
                     print("Too many tool calls, so I stopped.")
+                    break
+                if not response:
                     break
                 if response:
                     response_as_dict: dict = json.loads(response)
@@ -80,15 +87,15 @@ def main():
 
 
 def handel_add(response, messages):
-    add_to_message("assistant", response["tool_argument"], messages)
-    print(f"{INDENT}[tool call] {response["tool_name"]}: {response["tool_argument"]}")
-    tool_result = add_todo(response["tool_argument"])
+    add_to_message("assistant", response["tool_parameters"], messages)
+    print(f"{INDENT}[tool call] {response["tool_name"]}: {response["tool_parameters"]}")
+    tool_result = add_todo(response["tool_parameters"])
     print(f"{INDENT}{tool_result}")
     add_to_message("tool", tool_result, messages)
 
 
 def handel_list(response, messages):
-    add_to_message("assistant", response["tool_argument"], messages)
+    add_to_message("assistant", response["tool_parameters"], messages)
     tool_result = list_todo()
     add_to_message("tool", tool_result, messages)
 
@@ -96,8 +103,8 @@ def handel_list(response, messages):
 def handel_update(response, messages):
     handel_list(response, messages)
     print(f"{INDENT}[tool call] LIST")
-    tool_result = complete_todo(response["tool_argument"])
-    print(f"{INDENT}[tool call]  {response["tool_name"]}: {response["tool_argument"]}")
+    tool_result = complete_todo(response["tool_parameters"])
+    print(f"{INDENT}[tool call]  {response["tool_name"]}: {response["tool_parameters"]}")
     add_to_message("tool", tool_result, messages)
 
 
@@ -127,9 +134,9 @@ def format_messages(msgs):
         if msg["role"] == "user":
             result += "User: " + msg["content"] + '\n'
         elif msg["role"] == "assistant":
-            result += "Assistant: " + msg["content"] + '\n'
+            result += "Assistant: " + str(msg["content"]) + '\n'
         elif msg["role"] == "tool":
-            result += "tool_result: " + msg["content"] + '\n'
+            result += "tool_result: " + str(msg["content"]) + '\n'
         else:
             result += "Instructions: " + msg["content"] + "\n"
     result += "Assistant:"
@@ -139,7 +146,7 @@ def format_messages(msgs):
 def add_todo(task):
     if task:
         TODOS.append(task)
-        return f"Added: {task}" 
+        return f"Added: {task["task"]} ({task["priority"]})" 
     return "Failed, the 'task' is empty"
 
 
@@ -148,14 +155,14 @@ def list_todo():
         print("The list is empty.")
     result = ""
     for i, todo in enumerate(TODOS, start=1):
-        result += f"{i}_{todo}\n"
+        result += f"{i}. {todo["task"]} ({todo["priority"]})\n"
     return result
 
 
 def complete_todo(todo_no):
     if todo_no:
         try:
-            index = int(todo_no) - 1
+            index = int(todo_no["number"]) - 1
             todo = TODOS.pop(index)
         except (ValueError, IndexError):
             return f"The task number '{todo_no}' is not on the list."
@@ -174,11 +181,10 @@ def print_help():
 
 def tool_call_check(response: dict, messages: list):
     tool_name = response["tool_name"]
-    tool_argument = response["tool_argument"]
 
     if tool_name == "add_todo":
         handel_add(response, messages)
-    elif tool_name == "list_todo":
+    elif tool_name == "list_todos":
         handel_list(response, messages)
     elif tool_name == "complete_todo":
         handel_update(response, messages)
