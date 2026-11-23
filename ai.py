@@ -1,4 +1,4 @@
-from openai import OpenAI
+﻿from openai import OpenAI
 from os import environ
 from datetime import datetime
 from pathlib import Path
@@ -28,7 +28,7 @@ API_KEY = load_api_key()
 
 def logger(data, filename, type="usage"):
     # Logs the transactions with details
-    with open(filename, 'a') as file:
+    with open(filename, 'a', encoding='utf-8') as file:
         if type == "usage":
             file.write(f"--> {datetime.now()} >>> Response ID = {data.id}\t\n Input_token= {data.usage.input_tokens} | Output_token= {data.usage.output_tokens} | Total_token= {data.usage.total_tokens}\n\n")
         else:
@@ -36,6 +36,11 @@ def logger(data, filename, type="usage"):
 
 
 def call_gpt(input: str):
+    """Send a single prompt string and return the model's reply.
+
+    Uses the Groq Responses API (client.responses.create).
+    Switch to call_gpt_messages() for proper role-separated history.
+    """
     if not API_KEY:
         print("Error: API_KEY is not set. Add it to .env or set the environment variable.")
         return
@@ -49,9 +54,41 @@ def call_gpt(input: str):
         reasoning=None
     )
     if response.status == "completed":
-        logger(response, "usage_logger.txt")  # This line is just for logging the amount of token usages per function call nothing else
+        logger(response, "usage_logger.txt")
         return response.output_text
     return None
+
+
+def call_gpt_messages(messages: list):
+    """Send a role-separated messages list and return the model's reply.
+
+    Uses the Chat Completions API (client.chat.completions.create).
+    Each message must be {"role": "system"|"user"|"assistant"|"tool", "content": "..."}.
+    Preferred over call_gpt() — the model is trained on role tokens, not text prefixes.
+    """
+    if not API_KEY:
+        print("Error: API_KEY is not set. Add it to .env or set the environment variable.")
+        return
+    client = OpenAI(
+        api_key=API_KEY,
+        base_url="https://api.groq.com/openai/v1",
+    )
+    # Chat Completions only supports system / user / assistant roles.
+    # Map our internal "tool" role back to "user" so the API accepts it.
+    mapped = []
+    for msg in messages:
+        role = msg["role"]
+        content = str(msg["content"])
+        if role == "tool":
+            mapped.append({"role": "user", "content": f"[tool_result] {content}"})
+        else:
+            mapped.append({"role": role, "content": content})
+
+    response = client.chat.completions.create(
+        model="openai/gpt-oss-120b",
+        messages=mapped,
+    )
+    return response.choices[0].message.content
 
 
 #print(call_gpt("write 'hello'"))
